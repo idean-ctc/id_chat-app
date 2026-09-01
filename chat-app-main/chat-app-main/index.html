@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>My Chat App</title>
+  <link rel="icon" href="data:,">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: #1e1f22;
+      color: #dcddde;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      height: 100vh;
+      display: flex; /* lay out children left-to-right now, not top-to-bottom */
+    }
+
+    /* Far-left strip of circular server icons */
+    #serverList {
+      width: 72px;
+      background: #1a1b1e;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 0;
+      gap: 8px;
+      overflow-y: auto;
+    }
+
+    .server-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%; /* circle */
+      background: #2b2d31;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      cursor: pointer;
+      transition: border-radius 0.15s, background 0.15s;
+    }
+
+    .server-icon:hover {
+      border-radius: 16px; /* squishes into a rounded square on hover, like Discord */
+      background: #00a8fc;
+    }
+
+    .server-icon.active {
+      border-radius: 16px;
+      background: #00a8fc;
+    }
+
+    /* Channel list column */
+    #channelPanel {
+      width: 220px;
+      background: #2b2d31;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #channelPanel h2 {
+      padding: 16px;
+      font-size: 15px;
+      border-bottom: 1px solid #1a1b1e;
+    }
+
+    #channelList {
+      list-style: none;
+      padding: 8px;
+      flex: 1;
+    }
+
+    #channelList li {
+      padding: 8px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      color: #949ba4;
+      font-size: 14px;
+    }
+
+    #channelList li:hover {
+      background: #35373c;
+      color: #dcddde;
+    }
+
+    #channelList li.active {
+      background: #3f4147;
+      color: #fff;
+    }
+
+    #usernameBar {
+      padding: 12px;
+      border-top: 1px solid #1a1b1e;
+    }
+
+    #usernameBar input {
+      width: 100%;
+      background: #1e1f22;
+      border: 1px solid #3a3c41;
+      color: #dcddde;
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    /* Main chat area */
+    #chatArea {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #chatHeader {
+      padding: 12px 16px;
+      background: #2b2d31;
+      border-bottom: 1px solid #1a1b1e;
+      font-weight: 600;
+    }
+
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      list-style: none;
+      padding: 16px;
+    }
+
+    #messages li {
+      padding: 6px 4px;
+      border-radius: 4px;
+    }
+
+    #messages li:hover {
+      background: #2b2d31;
+    }
+
+    .username {
+      font-weight: 600;
+      margin-right: 6px;
+    }
+
+    #form {
+      display: flex;
+      padding: 16px;
+      background: #1e1f22;
+      gap: 8px;
+    }
+
+    #input {
+      flex: 1;
+      background: #383a40;
+      border: none;
+      color: #dcddde;
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    #input:focus {
+      outline: 1px solid #00a8fc;
+    }
+
+    #form button {
+      background: #00a8fc;
+      color: #fff;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    #form button:hover {
+      background: #0089d1;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="serverList"></div>
+
+  <div id="channelPanel">
+    <h2 id="serverName">My Server</h2>
+    <ul id="channelList"></ul>
+    <div id="usernameBar">
+      <input id="usernameInput" placeholder="Enter a username" />
+    </div>
+  </div>
+
+  <div id="chatArea">
+    <div id="chatHeader">#general</div>
+    <ul id="messages"></ul>
+    <form id="form">
+      <input id="input" autocomplete="off" placeholder="Message #general" />
+      <button>Send</button>
+    </form>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    // Define your servers and their channels here - just a plain JS object
+    const servers = {
+      'My Server': ['general', 'random'],
+      'Gaming': ['lobby', 'strategy']
+    };
+
+    const serverListEl = document.getElementById('serverList');
+    const channelListEl = document.getElementById('channelList');
+    const serverNameEl = document.getElementById('serverName');
+    const chatHeaderEl = document.getElementById('chatHeader');
+    const usernameInput = document.getElementById('usernameInput');
+    const form = document.getElementById('form');
+    const input = document.getElementById('input');
+    const messagesList = document.getElementById('messages');
+
+    let currentServer = Object.keys(servers)[0];
+    let currentChannel = servers[currentServer][0];
+
+    const nameColors = ['#00a8fc', '#f47fff', '#3ba55d', '#faa61a', '#ed4245', '#5865f2', '#eb459e'];
+
+    function colorForName(name) {
+      let hash = 0;
+      for (let i = 0; i < name.length; i++) {
+        hash = name.charCodeAt(i) + ((hash << 5) - hash);
+      }
+      return nameColors[Math.abs(hash) % nameColors.length];
+    }
+
+    function addMessage(data) {
+      const item = document.createElement('li');
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'username';
+      nameSpan.style.color = colorForName(data.username);
+      nameSpan.textContent = data.username + ':';
+      item.appendChild(nameSpan);
+      item.appendChild(document.createTextNode(' ' + data.text));
+      messagesList.appendChild(item);
+      messagesList.scrollTop = messagesList.scrollHeight;
+    }
+
+    // Build the circular server icons on the far left
+    function renderServerList() {
+      serverListEl.innerHTML = '';
+      Object.keys(servers).forEach((serverName) => {
+        const icon = document.createElement('div');
+        icon.className = 'server-icon' + (serverName === currentServer ? ' active' : '');
+        icon.textContent = serverName.slice(0, 2).toUpperCase(); // first 2 letters, like Discord does
+        icon.addEventListener('click', () => switchServer(serverName));
+        serverListEl.appendChild(icon);
+      });
+    }
+
+    // Build the channel list for whichever server is currently selected
+    function renderChannelList() {
+      serverNameEl.textContent = currentServer;
+      channelListEl.innerHTML = '';
+      servers[currentServer].forEach((channelName) => {
+        const li = document.createElement('li');
+        li.textContent = '# ' + channelName;
+        li.className = channelName === currentChannel ? 'active' : '';
+        li.addEventListener('click', () => switchChannel(channelName));
+        channelListEl.appendChild(li);
+      });
+    }
+
+    function joinCurrentRoom() {
+      chatHeaderEl.textContent = '#' + currentChannel;
+      input.placeholder = 'Message #' + currentChannel;
+      messagesList.innerHTML = '';
+      socket.emit('join channel', { server: currentServer, channel: currentChannel });
+    }
+
+    function switchServer(serverName) {
+      currentServer = serverName;
+      currentChannel = servers[serverName][0]; // default to first channel in that server
+      renderServerList();
+      renderChannelList();
+      joinCurrentRoom();
+    }
+
+    function switchChannel(channelName) {
+      currentChannel = channelName;
+      renderChannelList();
+      joinCurrentRoom();
+    }
+
+    socket.on('connect', () => {
+      renderServerList();
+      renderChannelList();
+      joinCurrentRoom();
+    });
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const username = usernameInput.value || 'Anonymous';
+      if (input.value) {
+        socket.emit('chat message', {
+          server: currentServer,
+          channel: currentChannel,
+          username: username,
+          text: input.value
+        });
+        input.value = '';
+      }
+    });
+
+    socket.on('chat message', (data) => {
+      if (data.server === currentServer && data.channel === currentChannel) {
+        addMessage(data);
+      }
+    });
+
+    socket.on('load messages', (msgs) => {
+      msgs.forEach(addMessage);
+    });
+  </script>
+</body>
+</html>

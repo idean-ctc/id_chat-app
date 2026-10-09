@@ -15,10 +15,10 @@
       color: #dcddde;
       font-family: 'Segoe UI', system-ui, sans-serif;
       height: 100vh;
-      display: flex; /* lay out children left-to-right now, not top-to-bottom */
+      display: flex;
     }
 
-    /* Far-left strip of circular server icons */
+   
     #serverList {
       width: 72px;
       background: #1a1b1e;
@@ -44,7 +44,7 @@
     }
 
     .server-icon:hover {
-      border-radius: 16px; /* squishes into a rounded square on hover, like Discord */
+      border-radius: 16px; 
       background: #00a8fc;
     }
 
@@ -53,7 +53,7 @@
       background: #00a8fc;
     }
 
-    /* Channel list column */
+   
     #channelPanel {
       width: 220px;
       background: #2b2d31;
@@ -106,7 +106,7 @@
       font-size: 13px;
     }
 
-    /* Main chat area */
+   
     #chatArea {
       flex: 1;
       display: flex;
@@ -202,7 +202,7 @@
   <script>
     const socket = io();
 
-    // Define your servers and their channels here - just a plain JS object
+    
     const servers = {
       'My Server': ['general', 'random'],
       'Gaming': ['lobby', 'strategy']
@@ -242,19 +242,19 @@
       messagesList.scrollTop = messagesList.scrollHeight;
     }
 
-    // Build the circular server icons on the far left
+    
     function renderServerList() {
       serverListEl.innerHTML = '';
       Object.keys(servers).forEach((serverName) => {
         const icon = document.createElement('div');
         icon.className = 'server-icon' + (serverName === currentServer ? ' active' : '');
-        icon.textContent = serverName.slice(0, 2).toUpperCase(); // first 2 letters, like Discord does
+        icon.textContent = serverName.slice(0, 2).toUpperCase();
         icon.addEventListener('click', () => switchServer(serverName));
         serverListEl.appendChild(icon);
       });
     }
 
-    // Build the channel list for whichever server is currently selected
+   
     function renderChannelList() {
       serverNameEl.textContent = currentServer;
       channelListEl.innerHTML = '';
@@ -276,7 +276,7 @@
 
     function switchServer(serverName) {
       currentServer = serverName;
-      currentChannel = servers[serverName][0]; // default to first channel in that server
+      currentChannel = servers[serverName][0]; 
       renderServerList();
       renderChannelList();
       joinCurrentRoom();
